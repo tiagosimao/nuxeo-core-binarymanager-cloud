@@ -21,11 +21,14 @@ package org.nuxeo.ecm.core.storage.sql;
 
 import static java.lang.Math.min;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.BUCKET_PREFIX_PROPERTY;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.nuxeo.ecm.core.api.NuxeoException;
 
 import com.amazonaws.AmazonClientException;
@@ -49,6 +52,8 @@ import com.amazonaws.services.s3.model.PartETag;
  * @since 10.1
  */
 public class S3Utils {
+
+    private static final Log log = LogFactory.getLog(S3Utils.class);
 
     /** The maximum size of a file that can be copied without using multipart: 5 GB */
     public static final long NON_MULTIPART_COPY_MAX_SIZE = 5L * 1024 * 1024 * 1024;
@@ -107,7 +112,7 @@ public class S3Utils {
      */
     public static ObjectMetadata copyFileMultipart(AmazonS3 amazonS3, ObjectMetadata objectMetadata,
             String sourceBucket, String sourceKey, String targetBucket, String targetKey, boolean deleteSource) {
-        InitiateMultipartUploadRequest initiateMultipartUploadRequest = new InitiateMultipartUploadRequest(sourceBucket,
+        InitiateMultipartUploadRequest initiateMultipartUploadRequest = new InitiateMultipartUploadRequest(targetBucket,
                 targetKey);
         InitiateMultipartUploadResult initiateMultipartUploadResult = amazonS3.initiateMultipartUpload(
                 initiateMultipartUploadRequest);
@@ -184,6 +189,15 @@ public class S3Utils {
                     new BasicAWSCredentials(awsSecretKeyId, awsSecretAccessKey));
         }
         return awsCredentialsProvider;
+    }
+
+    public static String formatBucketNamePrefix(String bucketNamePrefix) {
+        if (!isBlank(bucketNamePrefix) && !bucketNamePrefix.endsWith("/")) {
+            log.warn(String.format("%s %s S3 bucket prefix should end by '/' " + ": added automatically.",
+                                   BUCKET_PREFIX_PROPERTY, bucketNamePrefix));
+            return bucketNamePrefix.concat("/");
+        }
+        return bucketNamePrefix;
     }
 
 }

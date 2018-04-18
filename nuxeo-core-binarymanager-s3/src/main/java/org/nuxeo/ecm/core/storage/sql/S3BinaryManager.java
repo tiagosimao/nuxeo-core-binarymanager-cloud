@@ -23,6 +23,7 @@ package org.nuxeo.ecm.core.storage.sql;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.nuxeo.ecm.core.storage.sql.S3Utils.NON_MULTIPART_COPY_MAX_SIZE;
+import static org.nuxeo.ecm.core.storage.sql.S3Utils.formatBucketNamePrefix;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -250,11 +251,7 @@ public class S3BinaryManager extends AbstractCloudBinaryManager {
             throw new RuntimeException("Missing conf: " + BUCKET_NAME_PROPERTY);
         }
 
-        if (!isBlank(bucketNamePrefix) && !bucketNamePrefix.endsWith("/")) {
-            log.warn(String.format("%s %s S3 bucket prefix should end by '/' " + ": added automatically.",
-                    BUCKET_PREFIX_PROPERTY, bucketNamePrefix));
-            bucketNamePrefix += "/";
-        }
+        bucketNamePrefix = formatBucketNamePrefix(bucketNamePrefix);
         // set up credentials
         awsCredentialsProvider = S3Utils.getAWSCredentialsProvider(awsID, awsSecret);
 

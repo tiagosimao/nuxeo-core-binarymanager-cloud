@@ -19,7 +19,7 @@
  */
 package org.nuxeo.ecm.core.storage.sql;
 
-import static org.apache.commons.lang3.StringUtils.defaultIfEmpty;
+import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.AWS_ID_PROPERTY;
 import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.AWS_SECRET_PROPERTY;
@@ -27,6 +27,7 @@ import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.BUCKET_NAME_PROPERT
 import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.BUCKET_PREFIX_PROPERTY;
 import static org.nuxeo.ecm.core.storage.sql.S3BinaryManager.BUCKET_REGION_PROPERTY;
 import static org.nuxeo.ecm.core.storage.sql.S3Utils.NON_MULTIPART_COPY_MAX_SIZE;
+import static org.nuxeo.ecm.core.storage.sql.S3Utils.formatBucketNamePrefix;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -82,9 +83,9 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
 
     public static final String INFO_AWS_SESSION_TOKEN = "awsSessionToken";
 
-    public static final String INFO_BUCKET = "bucket";
+    public static final String INFO_BUCKET = BUCKET_NAME_PROPERTY;
 
-    public static final String INFO_BASE_KEY = "baseKey";
+    public static final String INFO_BUCKET_PREFIX = BUCKET_PREFIX_PROPERTY;
 
     public static final String INFO_EXPIRATION = "expiration";
 
@@ -100,7 +101,7 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
 
     protected String bucket;
 
-    protected String bucketPrefix;
+    protected String bucketNamePrefix;
 
     protected String roleArn;
 
@@ -116,7 +117,7 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
         }
         region = properties.get(BUCKET_REGION_PROPERTY);
         bucket = properties.get(BUCKET_NAME_PROPERTY);
-        bucketPrefix = defaultIfEmpty(properties.get(BUCKET_PREFIX_PROPERTY), "");
+        bucketNamePrefix = defaultString(properties.get(BUCKET_PREFIX_PROPERTY));
         roleArn = properties.get(ROLE_ARN_PROPERTY);
         accelerateModeEnabled = Boolean.parseBoolean(properties.get(ACCELERATE_MODE_ENABLED_PROPERTY));
         String awsSecretKeyId = properties.get(AWS_ID_PROPERTY);
@@ -132,6 +133,8 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
                                         .withCredentials(awsCredentialsProvider)
                                         .withAccelerateModeEnabled(accelerateModeEnabled)
                                         .build();
+
+        bucketNamePrefix = formatBucketNamePrefix(bucketNamePrefix);
     }
 
     @Override
@@ -151,7 +154,7 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
         properties.put(INFO_AWS_SECRET_ACCESS_KEY, credentials.getSecretAccessKey());
         properties.put(INFO_AWS_SESSION_TOKEN, credentials.getSessionToken());
         properties.put(INFO_BUCKET, bucket);
-        properties.put(INFO_BASE_KEY, bucketPrefix);
+        properties.put(INFO_BUCKET_PREFIX, bucketNamePrefix);
         properties.put(INFO_EXPIRATION, credentials.getExpiration().toInstant().toEpochMilli());
         properties.put(INFO_AWS_REGION, region);
         properties.put(INFO_USE_S3_ACCELERATE, accelerateModeEnabled);
@@ -161,6 +164,7 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
 
     @Override
     public boolean completeUpload(String batchId, String fileIndex, BatchFileInfo fileInfo) {
+        // contain the bucket name prefix
         String fileKey = fileInfo.getKey();
         ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, fileKey);
         if (metadata == null) {
@@ -172,16 +176,18 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
         }
         String mimeType = metadata.getContentType();
 
+        String targetFileKey = bucketNamePrefix + etag;
         ObjectMetadata newMetadata;
         if (metadata.getContentLength() > NON_MULTIPART_COPY_MAX_SIZE) {
-            newMetadata = S3Utils.copyFileMultipart(amazonS3, metadata, bucket, fileKey, bucket, etag, true);
+            newMetadata = S3Utils.copyFileMultipart(amazonS3, metadata, bucket, fileKey, bucket, targetFileKey, true);
         } else {
-            newMetadata = S3Utils.copyFile(amazonS3, metadata, bucket, fileKey, bucket, etag, true);
+            newMetadata = S3Utils.copyFile(amazonS3, metadata, bucket, fileKey, bucket, targetFileKey, true);
             boolean isMultipartUpload = REGEX_MULTIPART_ETAG.matcher(etag).find();
             if (isMultipartUpload) {
                 String previousEtag = etag;
                 etag = newMetadata.getETag();
-                newMetadata = S3Utils.copyFile(amazonS3, metadata, bucket, previousEtag, bucket, etag, true);
+                targetFileKey = bucketNamePrefix + newMetadata.getETag();
+                newMetadata = S3Utils.copyFile(amazonS3, metadata, bucket, previousEtag, bucket, targetFileKey, true);
             }
         }
 
