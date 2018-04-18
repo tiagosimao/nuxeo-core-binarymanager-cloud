@@ -64,7 +64,7 @@ public class S3Utils {
      * Represents an operation that accepts a slice number and a slice begin and end position.
      */
     @FunctionalInterface
-    public static interface SliceConsumer {
+    public interface SliceConsumer {
         /**
          * Performs this operation on the arguments.
          *
@@ -72,7 +72,7 @@ public class S3Utils {
          * @param begin the begin position
          * @param end the end position + 1
          */
-        public void accept(int num, long begin, long end);
+        void accept(int num, long begin, long end);
     }
 
     /**

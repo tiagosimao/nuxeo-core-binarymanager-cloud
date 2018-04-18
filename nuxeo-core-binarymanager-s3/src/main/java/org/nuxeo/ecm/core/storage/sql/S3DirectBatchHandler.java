@@ -171,7 +171,6 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
             return false;
         }
         String mimeType = metadata.getContentType();
-        String encoding = null;
 
         ObjectMetadata newMetadata;
         if (metadata.getContentLength() > NON_MULTIPART_COPY_MAX_SIZE) {
@@ -191,7 +190,7 @@ public class S3DirectBatchHandler extends AbstractBatchHandler {
         long length = newMetadata.getContentLength();
         String digest = newMetadata.getContentMD5();
         String blobProviderId = transientStoreName; // TODO decouple this
-        Blob blob = new BinaryBlob(new LazyBinary(blobKey, blobProviderId, null), blobKey, filename, mimeType, encoding,
+        Blob blob = new BinaryBlob(new LazyBinary(blobKey, blobProviderId, null), blobKey, filename, mimeType, null,
                 digest, length);
         Batch batch = getBatch(batchId);
         batch.addFile(fileIndex, blob, filename, mimeType);
